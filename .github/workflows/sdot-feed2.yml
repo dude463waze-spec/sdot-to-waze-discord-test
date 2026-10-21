@@ -7,19 +7,15 @@ jobs:
   test:
     runs-on: ubuntu-latest
 
+    steps:
       - name: Query SDOT
         run: |
           curl -s \
             -H "X-Api-Key: ${{ secrets.SDOT_API_KEY }}" \
             "https://rowimpacts.adc.seattle.gov/api/v1/feed?type=roadevent" \
-            | jq '.features[]
-              | select(.properties.vehicle_impact=="all-lanes-closed")
-              | {
-                  road: .properties.core_details.road_names,
-                  start: .properties.start_date,
-                  end: .properties.end_date,
-                  permit: .properties.core_details.description.PermitNumber
-                }'
+            | jq -r '.features[].properties.vehicle_impact' \
+            | sort \
+            | uniq -c
 
       - name: Post to Discord
         run: |
