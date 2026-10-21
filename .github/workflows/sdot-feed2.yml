@@ -20,6 +20,6 @@ jobs:
       - name: Post to Discord
         run: |
           curl -H "Content-Type: application/json" \
-          -X POST \
-          -d '{"content":"SDOT query completed"}' \
-          ${{ secrets.DISCORD_WEBHOOK }}
+            -X POST \
+            -d '{"content":"SDOT query completed"}' \
+            ${{ secrets.DISCORD_WEBHOOK }}
