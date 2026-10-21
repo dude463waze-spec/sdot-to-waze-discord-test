@@ -1,0 +1,16 @@
+name: Discord Test
+
+on:
+  workflow_dispatch:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Post to Discord
+        run: |
+          curl -H "Content-Type: application/json" \
+          -X POST \
+          -d '{"content":"Hello from GitHub Actions!"}' \
+          ${{ secrets.DISCORD_WEBHOOK }}
