@@ -9,7 +9,6 @@ jobs:
 
     steps:
       - name: Query SDOT
-      - name: Query SDOT
         run: |
           curl -s \
             -H "X-Api-Key: ${{ secrets.SDOT_API_KEY }}" \
@@ -17,7 +16,7 @@ jobs:
             | jq -r '.features[].properties.vehicle_impact' \
             | sort \
             | uniq -c
-            
+
       - name: Post to Discord
         run: |
           curl -H "Content-Type: application/json" \
