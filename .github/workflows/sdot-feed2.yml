@@ -8,18 +8,24 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - name: Query SDOT
+      - name: Show Full Closures
         run: |
           curl -s \
             -H "X-Api-Key: ${{ secrets.SDOT_API_KEY }}" \
             "https://rowimpacts.adc.seattle.gov/api/v1/feed?type=roadevent" \
-            | jq -r '.features[].properties.vehicle_impact' \
-            | sort \
-            | uniq -c
+            | jq '
+              .features[]
+              | select(.properties.vehicle_impact=="all-lanes-closed")
+              | {
+                  road: .properties.core_details.road_names,
+                  start: .properties.start_date,
+                  end: .properties.end_date
+                }
+            ' | head -100
 
       - name: Post to Discord
         run: |
           curl -H "Content-Type: application/json" \
             -X POST \
-            -d '{"content":"SDOT query completed"}' \
+            -d '{"content":"Retrieved full closure sample"}' \
             ${{ secrets.DISCORD_WEBHOOK }}
