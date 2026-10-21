@@ -8,12 +8,12 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - name: Count Incident Records
+      - name: Show One Incident
         run: |
           curl -s \
             -H "X-Api-Key: ${{ secrets.SDOT_API_KEY }}" \
             "https://rowimpacts.adc.seattle.gov/api/v1/feed?type=incident" \
-            | jq '.features | length'
+            | jq '.features[0]'
 
       - name: Post to Discord
         run: |
@@ -21,5 +21,5 @@ jobs:
 
           curl -H "Content-Type: application/json" \
             -X POST \
-            -d "{\"content\":\"Incident feed tested at $TIMESTAMP\"}" \
+            -d "{\"content\":\"Incident record test completed at $TIMESTAMP\"}" \
             ${{ secrets.DISCORD_WEBHOOK }}
