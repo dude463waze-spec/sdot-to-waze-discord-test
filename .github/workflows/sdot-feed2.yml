@@ -8,7 +8,7 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - name: Show Full Closures
+      - name: Show One Full Closure Record
         run: |
           curl -s \
             -H "X-Api-Key: ${{ secrets.SDOT_API_KEY }}" \
@@ -16,12 +16,8 @@ jobs:
             | jq '
               .features[]
               | select(.properties.vehicle_impact=="all-lanes-closed")
-              | {
-                  road: .properties.core_details.road_names,
-                  start: .properties.start_date,
-                  end: .properties.end_date
-                }
-            ' | head -100
+            ' \
+            | head -300
 
       - name: Post to Discord
         run: |
@@ -29,5 +25,5 @@ jobs:
 
           curl -H "Content-Type: application/json" \
             -X POST \
-            -d "{\"content\":\"SDOT query completed at $TIMESTAMP\"}" \
+            -d "{\"content\":\"Retrieved full closure detail at $TIMESTAMP\"}" \
             ${{ secrets.DISCORD_WEBHOOK }}
