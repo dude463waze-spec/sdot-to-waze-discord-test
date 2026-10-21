@@ -1,0 +1,23 @@
+name: SDOT Feed Test
+
+on:
+  workflow_dispatch:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Query SDOT
+        run: |
+          curl -s \
+            -H "X-Api-Key: ${{ secrets.SDOT_API_KEY }}" \
+            "https://rowimpacts.adc.seattle.gov/api/v1/feed?type=roadevent" \
+            | head -c 500
+
+      - name: Post to Discord
+        run: |
+          curl -H "Content-Type: application/json" \
+          -X POST \
+          -d '{"content":"SDOT query completed"}' \
+          ${{ secrets.DISCORD_WEBHOOK }}
