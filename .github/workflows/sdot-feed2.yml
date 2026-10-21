@@ -25,7 +25,9 @@ jobs:
 
       - name: Post to Discord
         run: |
+          TIMESTAMP=$(TZ=America/Los_Angeles date '+%Y-%m-%d %I:%M:%S %p %Z')
+
           curl -H "Content-Type: application/json" \
             -X POST \
-            -d '{"content":"Retrieved full closure sample"}' \
+            -d "{\"content\":\"SDOT query completed at $TIMESTAMP\"}" \
             ${{ secrets.DISCORD_WEBHOOK }}
