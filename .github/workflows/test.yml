@@ -1,4 +1,4 @@
-name: Discord Test
+name: SDOT Test
 
 on:
   workflow_dispatch:
@@ -8,9 +8,19 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
+      - name: Query SDOT Feed
+        id: sdot
+        run: |
+          COUNT=$(curl -s \
+            -H "X-Api-Key: ${{ secrets.SDOT_API_KEY }}" \
+            "https://rowimpacts.adc.seattle.gov/api/v1/feed?type=roadevent" \
+            | jq '.features | length')
+
+          echo "count=$COUNT" >> $GITHUB_OUTPUT
+
       - name: Post to Discord
         run: |
           curl -H "Content-Type: application/json" \
           -X POST \
-          -d '{"content":"Hello from GitHub Actions!"}' \
+          -d "{\"content\":\"SDOT feed reached successfully. Records returned: ${{ steps.sdot.outputs.count }}\"}" \
           ${{ secrets.DISCORD_WEBHOOK }}
