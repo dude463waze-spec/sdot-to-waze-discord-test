@@ -13,8 +13,8 @@ jobs:
           curl -s \
             -H "X-Api-Key: ${{ secrets.SDOT_API_KEY }}" \
             "https://rowimpacts.adc.seattle.gov/api/v1/feed?type=roadevent" \
-            | head -c 500
-
+            | jq '.features[0]'
+            
       - name: Post to Discord
         run: |
           curl -H "Content-Type: application/json" \
