@@ -32,6 +32,10 @@ jobs:
       - name: Notify Discord
         if: always()
         run: |
-          TIMESTAMP=$(TZ=America/Los_Angeles date "+%Y-%m-%d %I:%M:%S %p %Z")
+          echo '{"content":"✅ SDOT Closure Search completed"}' > payload.json
 
-          curl -H "Content-Type: application/
+          curl \
+            -H "Content-Type: application/json" \
+            -X POST \
+            -d @payload.json \
+            "${{ secrets.DISCORD_WEBHOOK }}"
