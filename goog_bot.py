@@ -58,24 +58,21 @@ def check_feeds():
             core_details = properties.get("core_details", {})
             raw_desc = core_details.get("description", {})
 
-            # 1. CLEAN DESCRIPTION PARSING & EXTRACTION
+            # 1. PARSE DESCRIPTION
             desc_text = ""
             permit_num = "N/A"
-            
             if isinstance(raw_desc, dict):
                 desc_text = str(raw_desc.get("PermittedUseDesc", "")).strip()
                 permit_num = raw_desc.get("PermitNumber", "N/A")
             else:
                 desc_text = str(raw_desc).strip()
 
-            # CRITICAL REFINE: If description text is totally empty, discard immediately
+            # If description text is totally empty, try using core event type text as fallback
             if not desc_text or desc_text.lower() in ["none", "null", "n/a", ""]:
-                new_seen_ids.add(event_id)
-                continue
+                desc_text = str(core_details.get("event_type", "Traffic Obstruction"))
 
-            # 2. LOCATION PARSING & CLEANING
+            # 2. PARSE LOCATION
             road_names = core_details.get("road_names", [])
-            # Clean out empty strings or random spacing commas from list data
             clean_roads = [r.strip() for r in road_names if r and r.strip() and r.strip() != ","]
             
             if clean_roads:
@@ -83,24 +80,27 @@ def check_feeds():
             else:
                 location = properties.get("location_description", properties.get("location", "")).strip()
 
-            # CRITICAL REFINE: Skip entries with zero actionable location text strings
+            # Skip entries with absolutely zero actionable location details
             if not location or location in [",", "", "Seattle Area"]:
                 new_seen_ids.add(event_id)
                 continue
 
-            # 3. CONTEXTUAL KEYWORD TRACKING
-            # We look for 'all-lanes-closed' explicitly inside the public descriptive fields
-            search_block = f"{desc_text} {location} {json.dumps(properties.get('restrictions', []))}".lower()
+            # 3. TARGETED KEYWORD SCANNING
+            # Collect the specific structure targets where WZDx maps lane status data
+            vehicle_impact = str(properties.get("vehicle_impact", "")).lower()
+            restrictions_list = json.dumps(properties.get("restrictions", [])).lower()
+            public_text = f"{desc_text} {location}".lower()
 
-            if "all-lanes-closed" in search_block:
+            # Match if 'all-lanes-closed' lives ANYWHERE in the structured parameters or texts
+            if "all-lanes-closed" in vehicle_impact or "all-lanes-closed" in restrictions_list or "all-lanes-closed" in public_text:
                 
-                # WAZE SYSTEM FILTER: Skip non-vehicular closures (sidewalks, transit, bikes)
+                # WAZE SYSTEM FILTER: Skip sidewalk, bike lane, or pedestrian entries
                 skip_keywords = ["sidewalk", "bike lane", "parking lane", "bus stop", "pedestrian"]
-                if any(skip_word in search_block for skip_word in skip_keywords):
+                if any(skip_word in public_text for skip_word in skip_keywords):
                     new_seen_ids.add(event_id)
                     continue
 
-                print(f"🚨 REFINED VEHICULAR CLOSURE MATCH: {event_id}")
+                print(f"🚨 MATCHED CLOSURE: {event_id}")
                 
                 display_desc = f"**Permit:** {permit_num} — {desc_text}" if permit_num != "N/A" else desc_text
                 start_time = properties.get("start_date", "Not specified")
