@@ -7,7 +7,7 @@ WEBHOOK_URL = os.environ.get("DISCORD_WEBHOOK")
 SEEN_FILE = "goog_seen_ids.txt"
 
 FEED_TYPES = ["roadevent", "workzone", "incident"]
-BASE_URL = "https://rowimpacts.adc.seattle.gov/api/v1/feed"
+BASE_URL = "https://seattle.gov"
 
 def load_seen_ids():
     if not os.path.exists(SEEN_FILE):
@@ -15,10 +15,9 @@ def load_seen_ids():
     with open(SEEN_FILE, "r") as f:
         return set(line.strip() for line in f if line.strip())
 
-def save_seen_ids(seen_ids):
-    with open(SEEN_FILE, "w") as f:
-        for cid in sorted(seen_ids):
-            f.write(f"{cid}\n")
+def append_seen_id(event_id):
+    with open(SEEN_FILE, "a") as f:
+        f.write(f"{event_id}\n")
 
 def check_feeds():
     if not API_KEY or not WEBHOOK_URL:
@@ -26,7 +25,6 @@ def check_feeds():
         return
 
     seen_ids = load_seen_ids()
-    new_seen_ids = set(seen_ids)
     headers = {
         "Content-Type": "application/json",
         "X-Api-Key": API_KEY
@@ -58,7 +56,7 @@ def check_feeds():
             core_details = properties.get("core_details", {})
             raw_desc = core_details.get("description", {})
 
-            # 1. PARSE DESCRIPTION
+            # 1. PARSE DESCRIPTION & TRACK TEXT
             desc_text = ""
             permit_num = "N/A"
             if isinstance(raw_desc, dict):
@@ -67,44 +65,59 @@ def check_feeds():
             else:
                 desc_text = str(raw_desc).strip()
 
-            # If description text is totally empty, try using core event type text as fallback
             if not desc_text or desc_text.lower() in ["none", "null", "n/a", ""]:
                 desc_text = str(core_details.get("event_type", "Traffic Obstruction"))
 
             # 2. PARSE LOCATION
             road_names = core_details.get("road_names", [])
             clean_roads = [r.strip() for r in road_names if r and r.strip() and r.strip() != ","]
-            
-            if clean_roads:
-                location = ", ".join(clean_roads)
-            else:
-                location = properties.get("location_description", properties.get("location", "")).strip()
+            location = ", ".join(clean_roads) if clean_roads else properties.get("location_description", properties.get("location", "")).strip()
 
-            # Skip entries with absolutely zero actionable location details
             if not location or location in [",", "", "Seattle Area"]:
-                new_seen_ids.add(event_id)
+                seen_ids.add(event_id)
+                append_seen_id(event_id)
                 continue
 
-            # 3. TARGETED KEYWORD SCANNING
-            # Collect the specific structure targets where WZDx maps lane status data
+            # 3. HARVEST SCATTERED HOURLY SCHEDULE DETAILS (THE MISSING LINK)
+            restrictions = properties.get("restrictions", [])
+            schedule_notes = []
+            
+            # Extract hourly windows buried inside the restrictions tracking system
+            if isinstance(restrictions, list):
+                for r in restrictions:
+                    if isinstance(r, dict):
+                        # Extract hidden schedule tags used by WZDx
+                        time_details = [
+                            r.get("scheduled_hours"),
+                            r.get("types_of_work"),
+                            r.get("restriction_type")
+                        ]
+                        for detail in time_details:
+                            if detail and str(detail).strip() and str(detail) != "None":
+                                schedule_notes.append(str(detail))
+
+            # 4. KEYWORD CHECK
             vehicle_impact = str(properties.get("vehicle_impact", "")).lower()
-            restrictions_list = json.dumps(properties.get("restrictions", [])).lower()
+            restrictions_list = json.dumps(restrictions).lower()
             public_text = f"{desc_text} {location}".lower()
 
-            # Match if 'all-lanes-closed' lives ANYWHERE in the structured parameters or texts
             if "all-lanes-closed" in vehicle_impact or "all-lanes-closed" in restrictions_list or "all-lanes-closed" in public_text:
                 
-                # WAZE SYSTEM FILTER: Skip sidewalk, bike lane, or pedestrian entries
+                # WAZE VEHICULAR FILTER: Skip sidewalk, bike, and bus lanes
                 skip_keywords = ["sidewalk", "bike lane", "parking lane", "bus stop", "pedestrian"]
                 if any(skip_word in public_text for skip_word in skip_keywords):
-                    new_seen_ids.add(event_id)
+                    seen_ids.add(event_id)
+                    append_seen_id(event_id)
                     continue
 
-                print(f"🚨 MATCHED CLOSURE: {event_id}")
+                print(f"🚨 MATCHED NEW CLOSURE WORK WINDOW: {event_id}")
                 
                 display_desc = f"**Permit:** {permit_num} — {desc_text}" if permit_num != "N/A" else desc_text
-                start_time = properties.get("start_date", "Not specified")
-                end_time = properties.get("end_date", "Ongoing")
+                start_window = properties.get("start_date", "Not specified")
+                end_window = properties.get("end_date", "Ongoing")
+
+                # Format the hourly schedule block cleanly for Discord view layouts
+                hours_value = "\n".join([f"• {note}" for note in schedule_notes]) if schedule_notes else "`No hourly restrictions specified in feed.`"
 
                 payload = {
                     "username": "Waze Seattle Closure Sync",
@@ -112,8 +125,9 @@ def check_feeds():
                         "title": "⛔ Waze Map Action Required: Full Road Closure",
                         "description": f"**Details:** {display_desc}\n**Impacted Location:** `{location}`",
                         "fields": [
-                            {"name": "⏰ Start Time", "value": f"`{start_time}`", "inline": True},
-                            {"name": "🏁 End Time", "value": f"`{end_time}`", "inline": True},
+                            {"name": "⏰ Active Work Schedule / Hours", "value": hours_value, "inline": False},
+                            {"name": "📅 Broad Permit Start", "value": f"`{start_window[:10]}`", "inline": True},
+                            {"name": "📅 Broad Permit End", "value": f"`{end_window[:10]}`", "inline": True},
                             {"name": "📁 Feed Origin", "value": f"`{feed_type}`", "inline": True}
                         ],
                         "color": 1658035, 
@@ -126,9 +140,9 @@ def check_feeds():
                 except Exception as cb_err:
                     print(f"Failed routing webhook message to Discord: {cb_err}")
 
-            new_seen_ids.add(event_id)
+            seen_ids.add(event_id)
+            append_seen_id(event_id)
 
-    save_seen_ids(new_seen_ids)
     print("✅ Finished processing all city feeds successfully.")
 
 if __name__ == "__main__":
