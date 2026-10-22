@@ -21,7 +21,7 @@ jobs:
             | select(.properties.restrictions | length > 0)' \
             workzones.json
 
-      - name: Notify Discord Completion
+      - name: Notify Discord
         if: always()
         run: |
           TIMESTAMP=$(TZ=America/Los_Angeles date '+%Y-%m-%d %I:%M:%S %p %Z')
