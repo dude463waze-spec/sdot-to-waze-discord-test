@@ -1,4 +1,4 @@
-name: SDOT Vehicle Impacts
+name: SDOT All Lanes Closed Test
 
 on:
   workflow_dispatch:
@@ -8,22 +8,23 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - name: Show Vehicle Impact Types
+      - name: Show Closed Roads
         run: |
           curl -s \
             -H "X-Api-Key: ${{ secrets.SDOT_API_KEY }}" \
             "https://rowimpacts.adc.seattle.gov/api/v1/feed?type=workzone" \
             > workzones.json
 
-          echo "=== VEHICLE IMPACTS ==="
+          echo "=== ALL LANES CLOSED ==="
 
-          jq -r '.features[].properties.vehicle_impact' workzones.json \
-            | sort | uniq -c
+          jq '.features[]
+            | select(.properties.vehicle_impact == "all-lanes-closed")' \
+            workzones.json
 
-      - name: Discord Done Message
+      - name: Notify Discord
         if: always()
         run: |
           curl -H "Content-Type: application/json" \
             -X POST \
-            -d '{"content":"✅ Vehicle impact scan finished"}' \
+            -d '{"content":"✅ All-lanes-closed scan completed"}' \
             "${{ secrets.DISCORD_WEBHOOK }}"
