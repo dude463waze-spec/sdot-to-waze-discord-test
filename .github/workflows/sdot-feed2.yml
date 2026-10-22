@@ -1,4 +1,4 @@
-name: SDOT Restriction Search
+name: SDOT Vehicle Impacts
 
 on:
   workflow_dispatch:
@@ -8,25 +8,22 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - name: Find Workzones With Restrictions
+      - name: Show Vehicle Impact Types
         run: |
           curl -s \
             -H "X-Api-Key: ${{ secrets.SDOT_API_KEY }}" \
             "https://rowimpacts.adc.seattle.gov/api/v1/feed?type=workzone" \
             > workzones.json
 
-          echo "=== WORKZONES WITH RESTRICTIONS ==="
+          echo "=== VEHICLE IMPACTS ==="
 
-          jq '.features[]
-            | select(.properties.restrictions | length > 0)' \
-            workzones.json
+          jq -r '.features[].properties.vehicle_impact' workzones.json \
+            | sort | uniq -c
 
-      - name: Notify Discord
+      - name: Discord Done Message
         if: always()
         run: |
-          TIMESTAMP=$(TZ=America/Los_Angeles date '+%Y-%m-%d %I:%M:%S %p %Z')
-
           curl -H "Content-Type: application/json" \
             -X POST \
-            -d "{\"content\":\"✅ SDOT Restriction Search completed at $TIMESTAMP\"}" \
+            -d '{"content":"✅ Vehicle impact scan finished"}' \
             "${{ secrets.DISCORD_WEBHOOK }}"
