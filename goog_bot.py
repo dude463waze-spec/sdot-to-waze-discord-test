@@ -6,7 +6,6 @@ API_KEY = os.environ.get("SDOT_API_KEY")
 WEBHOOK_URL = os.environ.get("DISCORD_WEBHOOK")
 SEEN_FILE = "goog_seen_ids.txt"
 
-# Official Backend SDOT Targets
 FEED_TYPES = ["roadevent", "workzone", "incident"]
 BASE_URL = "https://rowimpacts.adc.seattle.gov/api/v1/feed"
 
@@ -39,70 +38,85 @@ def check_feeds():
         
         try:
             response = requests.get(url, headers=headers, timeout=15)
-            
             if response.status_code != 200:
-                print(f"❌ Server returned status {response.status_code}.")
                 continue
-                
             data = response.json()
         except Exception as e:
             print(f"Skipping {feed_type} stream due to extraction error: {e}")
             continue
 
-        # Extract features block matching the GeoJSON specification layout
         events = data.get("features", []) if isinstance(data, dict) else []
         print(f"📊 Live items found inside {feed_type}: {len(events)}")
 
         for item in events:
-            # Safely trace nested unique identifiers
             event_id = str(item.get("id", hash(json.dumps(item))))
 
             if event_id in seen_ids:
                 continue
 
-            # Flatten the item into a string to scan for your exact term with hyphens
-            full_item_string = json.dumps(item).lower()
+            properties = item.get("properties", {})
+            core_details = properties.get("core_details", {})
+            raw_desc = core_details.get("description", {})
 
-            if "all-lanes-closed" in full_item_string:
-                properties = item.get("properties", {})
-                core_details = properties.get("core_details", {})
-                raw_desc = core_details.get("description", {})
+            # 1. CLEAN DESCRIPTION PARSING & EXTRACTION
+            desc_text = ""
+            permit_num = "N/A"
+            
+            if isinstance(raw_desc, dict):
+                desc_text = str(raw_desc.get("PermittedUseDesc", "")).strip()
+                permit_num = raw_desc.get("PermitNumber", "N/A")
+            else:
+                desc_text = str(raw_desc).strip()
 
-                # Extract the nested text components
-                if isinstance(raw_desc, dict):
-                    desc_text = str(raw_desc.get("PermittedUseDesc", ""))
-                    permit_num = raw_desc.get("PermitNumber", "N/A")
-                    display_desc = f"**Permit:** {permit_num} — {desc_text}"
-                else:
-                    desc_text = str(raw_desc)
-                    display_desc = desc_text
+            # CRITICAL REFINE: If description text is totally empty, discard immediately
+            if not desc_text or desc_text.lower() in ["none", "null", "n/a", ""]:
+                new_seen_ids.add(event_id)
+                continue
 
-                # WAZE SYSTEM FILTER: Skip sidewalk, bike lane, or pedestrian closures
+            # 2. LOCATION PARSING & CLEANING
+            road_names = core_details.get("road_names", [])
+            # Clean out empty strings or random spacing commas from list data
+            clean_roads = [r.strip() for r in road_names if r and r.strip() and r.strip() != ","]
+            
+            if clean_roads:
+                location = ", ".join(clean_roads)
+            else:
+                location = properties.get("location_description", properties.get("location", "")).strip()
+
+            # CRITICAL REFINE: Skip entries with zero actionable location text strings
+            if not location or location in [",", "", "Seattle Area"]:
+                new_seen_ids.add(event_id)
+                continue
+
+            # 3. CONTEXTUAL KEYWORD TRACKING
+            # We look for 'all-lanes-closed' explicitly inside the public descriptive fields
+            search_block = f"{desc_text} {location} {json.dumps(properties.get('restrictions', []))}".lower()
+
+            if "all-lanes-closed" in search_block:
+                
+                # WAZE SYSTEM FILTER: Skip non-vehicular closures (sidewalks, transit, bikes)
                 skip_keywords = ["sidewalk", "bike lane", "parking lane", "bus stop", "pedestrian"]
-                if any(skip_word in desc_text.lower() for skip_word in skip_keywords):
+                if any(skip_word in search_block for skip_word in skip_keywords):
                     new_seen_ids.add(event_id)
                     continue
 
-                print(f"🚨 VEHICULAR CLOSURE DETECTED: {event_id}")
-
-                # Extract structured geographical details
-                road_names = core_details.get("road_names", [])
-                location = ", ".join(road_names) if road_names else "Seattle Area"
+                print(f"🚨 REFINED VEHICULAR CLOSURE MATCH: {event_id}")
+                
+                display_desc = f"**Permit:** {permit_num} — {desc_text}" if permit_num != "N/A" else desc_text
                 start_time = properties.get("start_date", "Not specified")
                 end_time = properties.get("end_date", "Ongoing")
 
-                # Structure payload layout for Discord
                 payload = {
                     "username": "Waze Seattle Closure Sync",
                     "embeds": [{
                         "title": "⛔ Waze Map Action Required: Full Road Closure",
-                        "description": f"**Details:** {display_desc}\n**Impacted Location:** {location}",
+                        "description": f"**Details:** {display_desc}\n**Impacted Location:** `{location}`",
                         "fields": [
                             {"name": "⏰ Start Time", "value": f"`{start_time}`", "inline": True},
                             {"name": "🏁 End Time", "value": f"`{end_time}`", "inline": True},
                             {"name": "📁 Feed Origin", "value": f"`{feed_type}`", "inline": True}
                         ],
-                        "color": 1658035,  # Distinctive Waze blue accent
+                        "color": 1658035, 
                         "footer": {"text": f"SDOT Feature Reference ID: {event_id}"}
                     }]
                 }
