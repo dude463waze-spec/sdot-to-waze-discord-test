@@ -6,7 +6,6 @@ API_KEY = os.environ.get("SDOT_API_KEY")
 WEBHOOK_URL = os.environ.get("DISCORD_WEBHOOK")
 SEEN_FILE = "goog_seen_ids.txt"
 
-# Official Backend SDOT Targets - CORRECT ENDPOINT LOCKED
 FEED_TYPES = ["roadevent", "workzone", "incident"]
 BASE_URL = "https://rowimpacts.adc.seattle.gov/api/v1/feed"
 
@@ -79,27 +78,9 @@ def check_feeds():
                 append_seen_id(event_id)
                 continue
 
-            # 3. HARVEST SCATTERED HOURLY SCHEDULE DETAILS (THE MISSING LINK)
-            restrictions = properties.get("restrictions", [])
-            schedule_notes = []
-            
-            # Extract hourly windows buried inside the restrictions tracking system
-            if isinstance(restrictions, list):
-                for r in restrictions:
-                    if isinstance(r, dict):
-                        # Extract hidden schedule tags used by WZDx
-                        time_details = [
-                            r.get("scheduled_hours"),
-                            r.get("types_of_work"),
-                            r.get("restriction_type")
-                        ]
-                        for detail in time_details:
-                            if detail and str(detail).strip() and str(detail) != "None":
-                                schedule_notes.append(str(detail))
-
-            # 4. KEYWORD CHECK
+            # 3. KEYWORD CHECK
             vehicle_impact = str(properties.get("vehicle_impact", "")).lower()
-            restrictions_list = json.dumps(restrictions).lower()
+            restrictions_list = json.dumps(properties.get("restrictions", [])).lower()
             public_text = f"{desc_text} {location}".lower()
 
             if "all-lanes-closed" in vehicle_impact or "all-lanes-closed" in restrictions_list or "all-lanes-closed" in public_text:
@@ -114,25 +95,24 @@ def check_feeds():
                 print(f"🚨 MATCHED NEW CLOSURE WORK WINDOW: {event_id}")
                 
                 display_desc = f"**Permit:** {permit_num} — {desc_text}" if permit_num != "N/A" else desc_text
-                start_window = properties.get("start_date", "Not specified")
-                end_window = properties.get("end_date", "Ongoing")
-
-                # Format the hourly schedule block cleanly for Discord view layouts
-                hours_value = "\n".join([f"• {note}" for note in schedule_notes]) if schedule_notes else "`No hourly restrictions specified in feed.`"
+                
+                # Clean up the raw properties block into neat indentation lines for Discord codeblocks
+                raw_properties_dump = json.dumps(properties, indent=2)
+                
+                # Truncate slightly if it exceeds Discord's maximum character window limit
+                if len(raw_properties_dump) > 1500:
+                    raw_properties_dump = raw_properties_dump[:1500] + "\n...[Truncated for length]..."
 
                 payload = {
                     "username": "Waze Seattle Closure Sync",
                     "embeds": [{
-                        "title": "⛔ Waze Map Action Required: Full Road Closure",
-                        "description": f"**Details:** {display_desc}\n**Impacted Location:** `{location}`",
+                        "title": f"⛔ Waze Map Action: {location}",
+                        "description": f"**Header Info:** {display_desc}\n📁 **Source Feed:** `{feed_type}`",
                         "fields": [
-                            {"name": "⏰ Active Work Schedule / Hours", "value": hours_value, "inline": False},
-                            {"name": "📅 Broad Permit Start", "value": f"`{start_window[:10]}`", "inline": True},
-                            {"name": "📅 Broad Permit End", "value": f"`{end_window[:10]}`", "inline": True},
-                            {"name": "📁 Feed Origin", "value": f"`{feed_type}`", "inline": True}
+                            {"name": "⚙️ Complete Raw Properties JSON Data Block", "value": f"```json\n{raw_properties_dump}\n```", "inline": False}
                         ],
                         "color": 1658035, 
-                        "footer": {"text": f"SDOT Feature Reference ID: {event_id}"}
+                        "footer": {"text": f"ID: {event_id}"}
                     }]
                 }
 
