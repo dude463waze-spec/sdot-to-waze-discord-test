@@ -8,21 +8,21 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - name: Find Upcoming Closures and Events
+      - name: Find Active and Upcoming Closures and Events
         run: |
           curl -s \
             -H "X-Api-Key: ${{ secrets.SDOT_API_KEY }}" \
             "https://rowimpacts.adc.seattle.gov/api/v1/feed?type=workzone" \
             > workzones.json
 
-          START_DATE=$(date +%Y-%m-%d)
-          END_DATE=$(date -d "+30 days" +%Y-%m-%d)
+          TODAY=$(date +%Y-%m-%d)
+          FUTURE=$(date -d "+30 days" +%Y-%m-%d)
 
-          echo "=== UPCOMING CLOSURES AND EVENTS ==="
+          echo "=== ACTIVE AND UPCOMING CLOSURES AND EVENTS ==="
 
           jq -r \
-            --arg start "$START_DATE" \
-            --arg end "$END_DATE" '
+            --arg today "$TODAY" \
+            --arg future "$FUTURE" '
             .features[]
             | select(.properties.vehicle_impact == "all-lanes-closed")
             | {
@@ -36,7 +36,9 @@ jobs:
                 | test("closure|closed|festival|market|fair|parade|event|tailgating|ramp"; "i")
               )
             | select(
-                .start >= $start and .start <= $end
+                .end >= $today
+                and
+                .start <= $future
               )
           ' workzones.json \
           | jq -s 'unique_by(.name)[]'
@@ -44,7 +46,7 @@ jobs:
       - name: Notify Discord
         if: always()
         run: |
-          echo '{"content":"✅ SDOT Upcoming Closures and Events scan completed"}' > payload.json
+          echo '{"content":"✅ SDOT Active/Upcoming Closure Scan completed"}' > payload.json
 
           curl \
             -H "Content-Type: application/json" \
