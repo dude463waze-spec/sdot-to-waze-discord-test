@@ -1,6 +1,7 @@
 import os
 import json
 import requests
+from datetime import datetime, timedelta
 
 API_KEY = os.environ.get("SDOT_API_KEY")
 WEBHOOK_URL = os.environ.get("DISCORD_WEBHOOK")
@@ -14,10 +15,15 @@ def check_feeds():
         return
 
     headers = {"Content-Type": "application/json", "X-Api-Key": API_KEY}
+    
+    # Calculate 30 days ago to filter out ancient history
+    thirty_days_ago = datetime.utcnow() - timedelta(days=30)
 
     for feed_type in FEED_TYPES:
-        print(f"🔬 Testing feed stream layout for: {feed_type}...")
-        url = f"{BASE_URL}?type={feed_type}"
+        print(f"🔬 Fetching historical 30-day stream for: {feed_type}...")
+        
+        # Added status=all to force the API to give us historical/closed items, not just live ones
+        url = f"{BASE_URL}?type={feed_type}&status=all"
         
         try:
             response = requests.get(url, headers=headers, timeout=15)
@@ -36,30 +42,43 @@ def check_feeds():
         elif isinstance(data, list):
             events = data
 
-        if events and len(events) > 0:
-            print(f"✅ Found data items inside {feed_type}! Sending a sample layout to Discord...")
-            
-            # Grab the very first item to see how the city builds its data structure
-            sample_item = events[0]
-            
-            # Format a message displaying the raw structure fields to your channel
-            payload = {
-                "username": "Waze Script Debugger",
-                "content": f"🛠️ **Diagnostic Sample Found for `{feed_type}`!** Here is how the city structures this record:\n```json\n{json.dumps(sample_item, indent=2)[:1800]}\n```"
-            }
-            
-            try:
-                requests.post(WEBHOOK_URL, json=payload, timeout=10)
-                print("📬 Diagnostic sample posted to Discord successfully.")
-            except Exception as cb_err:
-                print(f"Failed posting debug payload to Discord: {cb_err}")
-            
-            # Stop after finding one match so we don't spam your Discord server
-            return
-        else:
-            print(f"ℹ️ Feed stream {feed_type} returned data, but the event list is completely empty right now.")
+        print(f"Total raw items returned from city for {feed_type}: {len(events)}")
 
-    print("🏁 Debug run finished processing.")
+        # Look through the events to find a sample from the last 30 days
+        for item in events:
+            properties = item.get("properties", item) if isinstance(item, dict) else {}
+            
+            # WZDx date fields can vary, so we check common ones
+            start_str = properties.get("start_date", properties.get("startTime", ""))
+            
+            # Try to see if this item is relatively recent
+            is_recent = True
+            if start_str:
+                try:
+                    # Clean up common ISO timestamp formats to check the date
+                    clean_date = start_str.split("T")[0]
+                    item_date = datetime.strptime(clean_date, "%Y-%m-%d")
+                    if item_date < thirty_days_ago:
+                        is_recent = False  # Skip if it's older than 30 days
+                except:
+                    pass # If date parsing fails, keep it anyway just to test
+
+            if is_recent:
+                print(f"✅ Found a valid sample item in {feed_type}! Pushing layout to Discord...")
+                
+                payload = {
+                    "username": "Waze Historical Tester",
+                    "content": f"📦 **Success! Connection verified.** Here is a sample record from the `{feed_type}` feed:\n```json\n{json.dumps(item, indent=2)[:1800]}\n```"
+                }
+                
+                try:
+                    requests.post(WEBHOOK_URL, json=payload, timeout=10)
+                    print("📬 Sample successfully pushed to your Discord channel.")
+                    return  # Stop the script immediately after one successful test post
+                except Exception as cb_err:
+                    print(f"Failed posting payload to Discord: {cb_err}")
+
+    print("🏁 Lookback run finished processing.")
 
 if __name__ == "__main__":
     check_feeds()
