@@ -1,4 +1,4 @@
-name: SDOT Recent Closures
+name: SDOT Closure Search
 
 on:
   workflow_dispatch:
@@ -8,7 +8,7 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - name: Show Recent All-Lanes-Closed
+      - name: Find Possible Closures
         run: |
           curl -s \
             -H "X-Api-Key: ${{ secrets.SDOT_API_KEY }}" \
@@ -16,12 +16,21 @@ jobs:
             > workzones.json
 
           jq '.features[]
-            | select(.properties.vehicle_impact == "all-lanes-closed")
+            | select(
+                .properties.core_details.description.Name
+                | test("closure|closed|ramp"; "i")
+              )
             | {
                 name: .properties.core_details.description.Name,
                 road: .properties.core_details.road_names,
-                created: .properties.core_details.creation_date,
-                updated: .properties.core_details.update_date,
                 start: .properties.start_date,
                 end: .properties.end_date
               }' workzones.json
+
+      - name: Notify Discord
+        if: always()
+        run: |
+          curl -H "Content-Type: application/json" \
+            -X POST \
+            -d '{"content":"✅ SDOT Closure Search completed"}' \
+            "${{ secrets.DISCORD_WEBHOOK }}"
