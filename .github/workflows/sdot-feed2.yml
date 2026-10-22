@@ -9,7 +9,6 @@ jobs:
 
     steps:
       - name: Get SDOT Incident
-        id: sdot
         run: |
           curl -s \
             -H "X-Api-Key: ${{ secrets.SDOT_API_KEY }}" \
@@ -21,16 +20,34 @@ jobs:
           echo "TYPE=$(jq -r '.features[0].properties.types_of_incident[0].incident_category' incident.json)" >> $GITHUB_ENV
           echo "ID=$(jq -r '.features[0].properties.core_details.description.IncidentId' incident.json)" >> $GITHUB_ENV
 
+      - name: Show Values
+        run: |
+          echo "ROAD=$ROAD"
+          echo "TYPE=$TYPE"
+          echo "DESC=$DESC"
+          echo "ID=$ID"
+
       - name: Post to Discord
         run: |
-          curl -H "Content-Type: application/json" \
-            -X POST \
-            -d "{
-              \"content\":\"🚨 SDOT Incident
+          MESSAGE=$(cat <<EOF
+🚨 SDOT Incident
 
 Road: $ROAD
 Type: $TYPE
 Description: $DESC
-Incident ID: $ID\"
-            }" \
+Incident ID: $ID
+EOF
+)
+
+          jq -n \
+            --arg content "$MESSAGE" \
+            '{content:$content}' \
+            > payload.json
+
+          cat payload.json
+
+          curl \
+            -H "Content-Type: application/json" \
+            -X POST \
+            -d @payload.json \
             "${{ secrets.DISCORD_WEBHOOK }}"
