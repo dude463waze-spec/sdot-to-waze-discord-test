@@ -1,4 +1,4 @@
-name: SDOT Workzone Test
+name: SDOT Restriction Search
 
 on:
   workflow_dispatch:
@@ -8,9 +8,13 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - name: Show First Workzone
+      - name: Find Workzones With Restrictions
         run: |
           curl -s \
             -H "X-Api-Key: ${{ secrets.SDOT_API_KEY }}" \
             "https://rowimpacts.adc.seattle.gov/api/v1/feed?type=workzone" \
-            | jq '.features[0]'
+            > workzones.json
+
+          jq '.features[]
+             | select(.properties.restrictions | length > 0)' \
+             workzones.json
