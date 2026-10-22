@@ -15,10 +15,12 @@ jobs:
             "https://rowimpacts.adc.seattle.gov/api/v1/feed?type=workzone" \
             > workzones.json
 
+          echo "=== POSSIBLE CLOSURES ==="
+
           jq '.features[]
             | select(
-                .properties.core_details.description.Name
-                | test("closure|closed|ramp"; "i")
+                ((.properties.core_details.description.Name // "")
+                | test("closure|closed|ramp"; "i"))
               )
             | {
                 name: .properties.core_details.description.Name,
@@ -30,7 +32,6 @@ jobs:
       - name: Notify Discord
         if: always()
         run: |
-          curl -H "Content-Type: application/json" \
-            -X POST \
-            -d '{"content":"✅ SDOT Closure Search completed"}' \
-            "${{ secrets.DISCORD_WEBHOOK }}"
+          TIMESTAMP=$(TZ=America/Los_Angeles date "+%Y-%m-%d %I:%M:%S %p %Z")
+
+          curl -H "Content-Type: application/
