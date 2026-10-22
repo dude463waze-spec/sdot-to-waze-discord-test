@@ -8,7 +8,7 @@ SEEN_FILE = "goog_seen_ids.txt"
 
 # Official Backend SDOT Targets - CORRECT ENDPOINT LOCKED
 FEED_TYPES = ["roadevent", "workzone", "incident"]
-BASE_URL = "https://seattle.gov"
+BASE_URL = "https://rowimpacts.adc.seattle.gov/api/v1/feed"
 
 def load_seen_ids():
     if not os.path.exists(SEEN_FILE):
