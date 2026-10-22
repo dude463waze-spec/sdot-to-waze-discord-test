@@ -8,20 +8,20 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - name: Find Active and Upcoming Closures and Events
+      - name: Find Recent and Upcoming Closures and Events
         run: |
           curl -s \
             -H "X-Api-Key: ${{ secrets.SDOT_API_KEY }}" \
             "https://rowimpacts.adc.seattle.gov/api/v1/feed?type=workzone" \
             > workzones.json
 
-          TODAY=$(date +%Y-%m-%d)
+          PAST=$(date -d "-30 days" +%Y-%m-%d)
           FUTURE=$(date -d "+30 days" +%Y-%m-%d)
 
-          echo "=== ACTIVE AND UPCOMING CLOSURES AND EVENTS ==="
+          echo "=== RECENT AND UPCOMING CLOSURES AND EVENTS ==="
 
           jq -r \
-            --arg today "$TODAY" \
+            --arg past "$PAST" \
             --arg future "$FUTURE" '
             .features[]
             | select(.properties.vehicle_impact == "all-lanes-closed")
@@ -36,7 +36,7 @@ jobs:
                 | test("closure|closed|festival|market|fair|parade|event|tailgating|ramp"; "i")
               )
             | select(
-                .end >= $today
+                .start >= $past
                 and
                 .start <= $future
               )
@@ -46,7 +46,7 @@ jobs:
       - name: Notify Discord
         if: always()
         run: |
-          echo '{"content":"✅ SDOT Active/Upcoming Closure Scan completed"}' > payload.json
+          echo '{"content":"✅ SDOT Recent/Upcoming Closure Scan completed"}' > payload.json
 
           curl \
             -H "Content-Type: application/json" \
