@@ -1,4 +1,4 @@
-name: Execute Goog Waze Closure Monitor
+name: Execute Goog Waze Closure Monitor V2
 
 on:
   schedule:
