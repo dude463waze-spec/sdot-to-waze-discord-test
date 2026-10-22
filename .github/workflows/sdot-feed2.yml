@@ -18,7 +18,7 @@ jobs:
             "https://rowimpacts.adc.seattle.gov/api/v1/feed?type=workzone" \
             > workzones.json
 
-      - name: Build Discord Message
+      - name: Create Event List
         run: |
           PAST=$(date -d "-30 days" +%Y-%m-%d)
-          FUT
+          FUTURE=$(date -d "+30 days" +%Y-%m
