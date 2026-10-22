@@ -8,18 +8,29 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - name: Show One Incident
+      - name: Get SDOT Incident
+        id: sdot
         run: |
           curl -s \
             -H "X-Api-Key: ${{ secrets.SDOT_API_KEY }}" \
             "https://rowimpacts.adc.seattle.gov/api/v1/feed?type=incident" \
-            | jq '.features[0]'
+            > incident.json
+
+          echo "ROAD=$(jq -r '.features[0].properties.core_details.road_names[0]' incident.json)" >> $GITHUB_ENV
+          echo "DESC=$(jq -r '.features[0].properties.core_details.description.IncidentDescription' incident.json)" >> $GITHUB_ENV
+          echo "TYPE=$(jq -r '.features[0].properties.types_of_incident[0].incident_category' incident.json)" >> $GITHUB_ENV
+          echo "ID=$(jq -r '.features[0].properties.core_details.description.IncidentId' incident.json)" >> $GITHUB_ENV
 
       - name: Post to Discord
         run: |
-          TIMESTAMP=$(TZ=America/Los_Angeles date '+%Y-%m-%d %I:%M:%S %p %Z')
-
           curl -H "Content-Type: application/json" \
             -X POST \
-            -d "{\"content\":\"Incident record test completed at $TIMESTAMP\"}" \
-            ${{ secrets.DISCORD_WEBHOOK }}
+            -d "{
+              \"content\":\"🚨 SDOT Incident
+
+Road: $ROAD
+Type: $TYPE
+Description: $DESC
+Incident ID: $ID\"
+            }" \
+            "${{ secrets.DISCORD_WEBHOOK }}"
