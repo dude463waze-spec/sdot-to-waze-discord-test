@@ -6,6 +6,7 @@ API_KEY = os.environ.get("SDOT_API_KEY")
 WEBHOOK_URL = os.environ.get("DISCORD_WEBHOOK")
 SEEN_FILE = "goog_seen_ids.txt"
 
+# Official Backend SDOT Targets - CORRECT ENDPOINT LOCKED
 FEED_TYPES = ["roadevent", "workzone", "incident"]
 BASE_URL = "https://seattle.gov"
 
