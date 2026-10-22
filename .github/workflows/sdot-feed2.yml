@@ -3,11 +3,8 @@ name: SDOT Upcoming Closures and Events
 on:
   workflow_dispatch:
 
-  schedule:
-    - cron: '0 2 * * *'
-
 jobs:
-  sdot:
+  test:
     runs-on: ubuntu-latest
 
     steps:
@@ -18,12 +15,38 @@ jobs:
             "https://rowimpacts.adc.seattle.gov/api/v1/feed?type=workzone" \
             > workzones.json
 
-      - name: Build Event List
+      - name: Find Recent and Upcoming Closures and Events
         run: |
           PAST=$(date -d "-30 days" +%Y-%m-%d)
           FUTURE=$(date -d "+30 days" +%Y-%m-%d)
 
-          jq -r \
-            --arg past "$PAST" \
-            --arg future "$FUTURE" '
-         
+          echo "=== RECENT AND UPCOMING CLOSURES AND EVENTS ==="
+
+          jq --arg past "$PAST" --arg future "$FUTURE" '
+          .features[]
+          | select(.properties.vehicle_impact == "all-lanes-closed")
+          | {
+              name: (.properties.core_details.description.Name // ""),
+              road: (.properties.core_details.road_names // []),
+              start: (.properties.start_date[0:10]),
+              end: (.properties.end_date[0:10])
+            }
+          | select(
+              (.name | test("closure|closed|festival|market|fair|parade|event|tailgating|ramp"; "i"))
+            )
+          | select(
+              (.start >= $past and .start <= $future)
+            )
+          ' workzones.json \
+          | jq -s 'unique_by(.name)[]'
+
+      - name: Notify Discord
+        if: always()
+        run: |
+          echo '{"content":"✅ SDOT Recent/Upcoming Closure Scan completed"}' > payload.json
+
+          curl \
+            -H "Content-Type: application/json" \
+            -X POST \
+            -d @payload.json \
+            "${{ secrets.DISCORD_WEBHOOK }}"
