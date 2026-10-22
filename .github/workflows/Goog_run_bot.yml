@@ -2,9 +2,9 @@ name: Execute Seattle Road Closure Monitor
 
 on:
   schedule:
-    # Triggers every 15 minutes (GitHub's minimum allowed cron frequency)
-    - cron: '*/15 * * * *'
-  workflow_dispatch: # Allows you to press a button to manually force a test run
+    # Runs once a day at 03:00 UTC (which is 8:00 PM Pacific Time / 7:00 PM during PST)
+    - cron: '0 3 * * *'
+  workflow_dispatch: # Keeps the manual test button open for you
 
 jobs:
   run-tracker:
