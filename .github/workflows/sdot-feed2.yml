@@ -20,34 +20,14 @@ jobs:
           echo "TYPE=$(jq -r '.features[0].properties.types_of_incident[0].incident_category' incident.json)" >> $GITHUB_ENV
           echo "ID=$(jq -r '.features[0].properties.core_details.description.IncidentId' incident.json)" >> $GITHUB_ENV
 
-      - name: Show Values
-        run: |
-          echo "ROAD=$ROAD"
-          echo "TYPE=$TYPE"
-          echo "DESC=$DESC"
-          echo "ID=$ID"
-
       - name: Post to Discord
         run: |
-          MESSAGE=$(cat <<EOF
-🚨 SDOT Incident
-
-Road: $ROAD
-Type: $TYPE
-Description: $DESC
-Incident ID: $ID
-EOF
-)
-
-          jq -n \
-            --arg content "$MESSAGE" \
-            '{content:$content}' \
-            > payload.json
-
-          cat payload.json
-
-          curl \
-            -H "Content-Type: application/json" \
+          curl -H "Content-Type: application/json" \
             -X POST \
-            -d @payload.json \
+            -d "$(jq -n \
+              --arg road "$ROAD" \
+              --arg type "$TYPE" \
+              --arg desc "$DESC" \
+              --arg id "$ID" \
+              '{content: ("🚨 SDOT Incident\n\nRoad: " + $road + "\nType: " + $type + "\nDescription: " + $desc + "\nIncident ID: " + $id)}')" \
             "${{ secrets.DISCORD_WEBHOOK }}"
