@@ -1,6 +1,16 @@
-      - name: Show First 5 Workzones
+name: SDOT Workzone Test
+
+on:
+  workflow_dispatch:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Show First Workzone
         run: |
           curl -s \
             -H "X-Api-Key: ${{ secrets.SDOT_API_KEY }}" \
             "https://rowimpacts.adc.seattle.gov/api/v1/feed?type=workzone" \
-            | jq '.features[:5]'
+            | jq '.features[0]'
