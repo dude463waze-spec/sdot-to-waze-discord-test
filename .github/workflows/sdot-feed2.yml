@@ -18,7 +18,59 @@ jobs:
             "https://rowimpacts.adc.seattle.gov/api/v1/feed?type=workzone" \
             > workzones.json
 
-      - name: Create Event List
+      - name: Build Event List
         run: |
           PAST=$(date -d "-30 days" +%Y-%m-%d)
-          FUTURE=$(date -d "+30 days" +%Y-%m
+          FUTURE=$(date -d "+30 days" +%Y-%m-%d)
+
+          jq --arg past "$PAST" --arg future "$FUTURE" '
+          .features[]
+          | select(.properties.vehicle_impact == "all-lanes-closed")
+          | {
+              name: (.properties.core_details.description.Name // ""),
+              road: (.properties.core_details.road_names // []),
+              start: (.properties.start_date[0:10]),
+              end: (.properties.end_date[0:10])
+            }
+          | select(
+              (.name | test("closure|closed|festival|market|fair|parade|event|tailgating|ramp"; "i"))
+            )
+          | select(
+              (.start >= $past and .start <= $future)
+            )
+          ' workzones.json \
+          | jq -s 'unique_by(.name)' \
+          > events.json
+
+      - name: Build Discord Message
+        run: |
+          COUNT=$(jq 'length' events.json)
+
+          if [ "$COUNT" -eq 0 ]; then
+            echo "✅ SDOT Scan Complete" > discord.txt
+            echo "" >> discord.txt
+            echo "No qualifying closures or event-related road impacts found." >> discord.txt
+          else
+            echo "🚧 SDOT Recent & Upcoming Closures" > discord.txt
+            echo "" >> discord.txt
+
+            jq -r '
+            .[]
+            | "• " + .name
+              + "\n  Start: " + .start
+              + "\n  End: " + .end
+              + "\n"
+            ' events.json >> discord.txt
+          fi
+
+          cat discord.txt
+
+      - name: Post to Discord
+        run: |
+          jq -Rs '{content:.}' discord.txt > payload.json
+
+          curl \
+            -H "Content-Type: application/json" \
+            -X POST \
+            -d @payload.json \
+            "${{ secrets.DISCORD_WEBHOOK }}"
