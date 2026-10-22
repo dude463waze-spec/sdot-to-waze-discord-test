@@ -1,4 +1,4 @@
-name: SDOT Closure Search
+name: SDOT Upcoming Closures and Events
 
 on:
   workflow_dispatch:
@@ -8,27 +8,35 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - name: Find Possible Closures and Events
+      - name: Find Upcoming Closures and Events
         run: |
           curl -s \
             -H "X-Api-Key: ${{ secrets.SDOT_API_KEY }}" \
             "https://rowimpacts.adc.seattle.gov/api/v1/feed?type=workzone" \
             > workzones.json
 
-          echo "=== POSSIBLE ROAD CLOSURES AND EVENTS ==="
+          START_DATE=$(date +%Y-%m-%d)
+          END_DATE=$(date -d "+30 days" +%Y-%m-%d)
 
-          jq -r '
+          echo "=== UPCOMING CLOSURES AND EVENTS ==="
+
+          jq -r \
+            --arg start "$START_DATE" \
+            --arg end "$END_DATE" '
             .features[]
             | select(.properties.vehicle_impact == "all-lanes-closed")
             | {
                 name: (.properties.core_details.description.Name // ""),
                 road: (.properties.core_details.road_names // []),
-                start: .properties.start_date,
-                end: .properties.end_date
+                start: (.properties.start_date[0:10]),
+                end: (.properties.end_date[0:10])
               }
             | select(
                 .name
                 | test("closure|closed|festival|market|fair|parade|event|tailgating|ramp"; "i")
+              )
+            | select(
+                .start >= $start and .start <= $end
               )
           ' workzones.json \
           | jq -s 'unique_by(.name)[]'
@@ -36,7 +44,7 @@ jobs:
       - name: Notify Discord
         if: always()
         run: |
-          echo '{"content":"✅ SDOT Closure Search completed"}' > payload.json
+          echo '{"content":"✅ SDOT Upcoming Closures and Events scan completed"}' > payload.json
 
           curl \
             -H "Content-Type: application/json" \
