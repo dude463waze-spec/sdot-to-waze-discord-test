@@ -15,6 +15,18 @@ jobs:
             "https://rowimpacts.adc.seattle.gov/api/v1/feed?type=workzone" \
             > workzones.json
 
+          echo "=== WORKZONES WITH RESTRICTIONS ==="
+
           jq '.features[]
-             | select(.properties.restrictions | length > 0)' \
-             workzones.json
+            | select(.properties.restrictions | length > 0)' \
+            workzones.json
+
+      - name: Notify Discord Completion
+        if: always()
+        run: |
+          TIMESTAMP=$(TZ=America/Los_Angeles date '+%Y-%m-%d %I:%M:%S %p %Z')
+
+          curl -H "Content-Type: application/json" \
+            -X POST \
+            -d "{\"content\":\"✅ SDOT Restriction Search completed at $TIMESTAMP\"}" \
+            "${{ secrets.DISCORD_WEBHOOK }}"
