@@ -1,0 +1,38 @@
+name: Execute Goog Waze Closure Monitor
+
+on:
+  schedule:
+    # Runs daily at 03:00 UTC (8:00 PM Pacific Time)
+    - cron: '0 3 * * *'
+  workflow_dispatch: # Keeps your manual "Run workflow" test button active
+
+jobs:
+  run-tracker:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Code Repository State
+        uses: actions/checkout@v4
+
+      - name: Initialize Runtime Environment
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.10'
+
+      - name: Install Dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r goog_requirements.txt
+
+      - name: Run Extraction Script
+        env:
+          SDOT_API_KEY: ${{ secrets.SDOT_API_KEY }}
+          DISCORD_WEBHOOK: ${{ secrets.DISCORD_WEBHOOK }}
+        run: python goog_bot.py
+
+      - name: Commit and Persist Deduplication Log
+        run: |
+          git config --global user.name "GoogClosureBotRunner"
+          git config --global user.email "bot@github.actions.internal"
+          git add goog_seen_ids.txt || true
+          git commit -m "System auto-update: Appended newly observed event tracking tokens [skip ci]" || true
+          git push || true
