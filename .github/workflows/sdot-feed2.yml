@@ -17,17 +17,21 @@ jobs:
 
           echo "=== POSSIBLE CLOSURES ==="
 
-          jq '.features[]
-            | select(
-                ((.properties.core_details.description.Name // "")
-                | test("closure|closed|ramp"; "i"))
-              )
+          jq -r '
+            .features[]
+            | select(.properties.vehicle_impact == "all-lanes-closed")
             | {
-                name: .properties.core_details.description.Name,
-                road: .properties.core_details.road_names,
+                name: (.properties.core_details.description.Name // ""),
+                road: (.properties.core_details.road_names // []),
                 start: .properties.start_date,
                 end: .properties.end_date
-              }' workzones.json
+              }
+            | select(
+                .name
+                | test("closure|closed"; "i")
+              )
+          ' workzones.json \
+          | jq -s 'unique_by(.name)[]'
 
       - name: Notify Discord
         if: always()
