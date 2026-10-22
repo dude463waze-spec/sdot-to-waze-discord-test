@@ -8,7 +8,7 @@ SEEN_FILE = "goog_seen_ids.txt"
 
 # Official SDOT WZDx API endpoint
 FEED_TYPES = ["roadevent", "workzone", "incident"]
-BASE_URL = "https://seattle.gov"
+BASE_URL = "https://rowimpacts.adc.seattle.gov"
 
 def load_seen_ids():
     if not os.path.exists(SEEN_FILE):
