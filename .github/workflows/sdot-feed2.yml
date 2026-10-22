@@ -8,14 +8,14 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - name: Find Possible Closures
+      - name: Find Possible Closures and Events
         run: |
           curl -s \
             -H "X-Api-Key: ${{ secrets.SDOT_API_KEY }}" \
             "https://rowimpacts.adc.seattle.gov/api/v1/feed?type=workzone" \
             > workzones.json
 
-          echo "=== POSSIBLE CLOSURES ==="
+          echo "=== POSSIBLE ROAD CLOSURES AND EVENTS ==="
 
           jq -r '
             .features[]
@@ -28,7 +28,7 @@ jobs:
               }
             | select(
                 .name
-                | test("closure|closed"; "i")
+                | test("closure|closed|festival|market|fair|parade|event|tailgating|ramp"; "i")
               )
           ' workzones.json \
           | jq -s 'unique_by(.name)[]'
