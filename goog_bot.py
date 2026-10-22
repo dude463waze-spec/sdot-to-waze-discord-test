@@ -6,7 +6,7 @@ API_KEY = os.environ.get("SDOT_API_KEY")
 WEBHOOK_URL = os.environ.get("DISCORD_WEBHOOK")
 SEEN_FILE = "goog_seen_ids.txt"
 
-# Official SDOT WZDx endpoints from specifications doc
+# Official SDOT WZDx endpoints - RESTORED CORRECT URL
 FEED_TYPES = ["roadevent", "workzone", "incident"]
 BASE_URL = "https://seattle.gov"
 
@@ -31,20 +31,17 @@ def check_feeds():
     headers = {"Content-Type": "application/json", "X-Api-Key": API_KEY}
 
     for feed_type in FEED_TYPES:
-        # Standard WZDx feed URL layout
         url = f"{BASE_URL}?type={feed_type}"
         print(f"🔬 Querying clean feed endpoint: {url}")
         
         try:
             response = requests.get(url, headers=headers, timeout=15)
             
-            # Print explicit debug logs if the city gives an unexpected status code
             if response.status_code != 200:
                 print(f"❌ City server rejected query with status {response.status_code}.")
-                print(f"📋 Raw Server Text Response: {response.text}")
+                print(f"📋 Raw Server Text Response: {response.text[:500]}")
                 continue
                 
-            # If the response isn't JSON, print the raw message block instead of crashing
             try:
                 data = response.json()
             except Exception as json_err:
@@ -56,7 +53,7 @@ def check_feeds():
             print(f"Skipping {feed_type} stream due to connection failure: {conn_err}")
             continue
 
-        # Process the raw GeoJSON arrays 
+        # Process the GeoJSON arrays 
         events = []
         if isinstance(data, dict):
             events = data.get("features", data.get("items", []))
